@@ -1,15 +1,15 @@
 #include <algorithm>
 #include <array>
+#include <iostream>
 #include <limits>
 #include <numeric>
 #include <queue>
-#include <iostream>
 #include <vector>
 
 namespace TSP {
 template <std::size_t N> using Row = std::array<int, N>;
 template <std::size_t N> using Matrix = std::array<Row<N>, N>;
-using Edge = std::pair<int,int>;
+using Edge = std::pair<int, int>;
 using Path = std::vector<Edge>;
 static constexpr int INF = std::numeric_limits<int>::max();
 using std::size_t;
@@ -24,7 +24,8 @@ template <std::size_t N> struct ReducedMatrixNode {
   Row<N> reduceRow() {
     Row<N> minRow;
     for (size_t i = 0; i < N; i++) {
-        minRow[i] = *std::min_element(this->reduced[i].cbegin(), this->reduced[i].cend());
+      minRow[i] =
+          *std::min_element(this->reduced[i].cbegin(), this->reduced[i].cend());
     }
 
     for (size_t i = 0; i < N; i++) {
@@ -67,13 +68,13 @@ template <std::size_t N> struct ReducedMatrixNode {
   }
 
   void printPath() {
-      std::for_each(path.cbegin(), path.cend(), [](Edge item) {
-          std::cout << "(" << item.first << ", " << item.second << ") ";
-      });
-      std::cout<<"\n";
+    std::for_each(path.cbegin(), path.cend(), [](Edge item) {
+      std::cout << "(" << item.first << ", " << item.second << ") ";
+    });
+    std::cout << "\n";
   }
 
-    ReducedMatrixNode(const Matrix<N> &costMatrix)
+  ReducedMatrixNode(const Matrix<N> &costMatrix)
       : reduced(costMatrix), path(), level(0), vertex(0), cost(0) {
     calculateCost();
   }
@@ -108,27 +109,29 @@ template <std::size_t N> struct Min_Heap {
   }
 };
 template <std::size_t N> int solveTSP(Matrix<N> costMatrix) {
-    std::priority_queue<ReducedMatrixNode<N>*, std::vector<ReducedMatrixNode<N>*>, Min_Heap<N> > queue;
-    Path solution;
-    int finalCost = 0;
-    ReducedMatrixNode<N>* root = new ReducedMatrixNode<N>(costMatrix);
-    queue.push(root);
-    while (!queue.empty()) {
-        ReducedMatrixNode<N> *min = queue.top();
-        queue.pop();
-        if (min->level == N - 1) {
-          finalCost = min->cost;
-          min->printPath();
-          delete min;
-          return finalCost;
-        }
-        for (size_t j = 0; j < N; j++) {
-          if (min->reduced[min->vertex][j] != INF) {
-              queue.push(new ReducedMatrixNode<N>(*min, j));
-          }
-        }
-        delete min;
+  std::priority_queue<ReducedMatrixNode<N> *,
+                      std::vector<ReducedMatrixNode<N> *>, Min_Heap<N>>
+      queue;
+  Path solution;
+  int finalCost = 0;
+  ReducedMatrixNode<N> *root = new ReducedMatrixNode<N>(costMatrix);
+  queue.push(root);
+  while (!queue.empty()) {
+    ReducedMatrixNode<N> *min = queue.top();
+    queue.pop();
+    if (min->level == N - 1) {
+      finalCost = min->cost;
+      min->printPath();
+      delete min;
+      return finalCost;
     }
-    return finalCost;
+    for (size_t j = 0; j < N; j++) {
+      if (min->reduced[min->vertex][j] != INF) {
+        queue.push(new ReducedMatrixNode<N>(*min, j));
+      }
+    }
+    delete min;
+  }
+  return finalCost;
 }
 } // namespace TSP
