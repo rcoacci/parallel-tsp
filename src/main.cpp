@@ -1,12 +1,25 @@
-#include "tspSolver.hpp"
+#include "BBSolver.hpp"
+#include <cstdlib>
+#include <omp.h>
+
 
 int main(int argc, char *argv[]){
+    long nthreads = omp_get_max_threads();
+    if(argc>0){
+        nthreads = std::strtol(argv[1], nullptr, 10);
+    }
+    std::cout<<"Usando "<<nthreads<<" threads.\n";
+    omp_set_num_threads(nthreads);
     using TSP::INF;
-    TSP::Matrix<4> cost = { INF, 10, 15, 20,
-                            10, INF, 35, 25,
-                            15, 35, INF, 30,
-                            20, 25, 30, INF };
-    int sol = TSP::solveTSP(cost);
-    std::cout<<"Total cost: "<<sol<<"\n";
+    #include "gr17.h"
+    int sol = TSP::solveTSP(costMatrix, false);
+    if(sol != best_solution){
+        std::cout<<"************* Custo INCORRETO! *****************\n";
+        std::cout<<"Custo correto:    "<<best_solution<<"\n";
+        std::cout<<"Custo encontrado: "<<sol<<"\n";
+        return -1;
+    } else {
+        std::cout<<"Custo correto!\n";
+    }
     return 0;
 }

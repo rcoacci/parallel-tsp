@@ -7,11 +7,11 @@
 #include <vector>
 
 namespace TSP {
-template <std::size_t N> using Row = std::array<int, N>;
+template <std::size_t N> using Row = std::array<uint16_t, N>;
 template <std::size_t N> using Matrix = std::array<Row<N>, N>;
-using Edge = std::pair<int, int>;
+using Edge = std::pair<size_t, size_t>;
 using Path = std::vector<Edge>;
-static constexpr int INF = std::numeric_limits<int>::max();
+static constexpr auto INF = std::numeric_limits<uint16_t>::max();
 using std::size_t;
 
 template <std::size_t N>
@@ -19,7 +19,7 @@ struct Node {
     Matrix<N> reducedCost;
     Path path;
     std::size_t level;
-    int vertex;
+    size_t vertex;
     int cost;
 
     Row<N> reduceRow() {
@@ -68,7 +68,7 @@ struct Node {
         }
     }
 
-    void printPath() {
+    void printPath() const {
         std::for_each(path.cbegin(), path.cend(), [](Edge item) {
             std::cout << "(" << item.first << ", " << item.second << ") ";
         });
@@ -86,15 +86,17 @@ struct Node {
         this->path.push_back(std::make_pair(parent.vertex, vertex));
         this->cost += parent.reducedCost[parent.vertex][vertex];
         // Change all entries of row i and column j to INF
-        for (size_t k = 0; level != 0 && k < N; k++) {
+        if(level!=0){
+            for (size_t k = 0; k < N; k++) {
 
-            // Set outgoing edges for the city i to INF
-            this->reducedCost[parent.vertex][k] = INF;
+                // Set outgoing edges for the city i to INF
+                this->reducedCost[parent.vertex][k] = INF;
 
-            // Set incoming edges to city j to INF
-            this->reducedCost[k][vertex] = INF;
+                // Set incoming edges to city j to INF
+                this->reducedCost[k][vertex] = INF;
+            }
         }
-        // Adiciona caminho para cidade inicial
+                // Adiciona caminho para cidade inicial
         if (level == N - 1) {
             this->path.push_back(std::make_pair(vertex, 0));
         }
@@ -111,25 +113,31 @@ struct Min_Heap {
     }
 };
 template <std::size_t N>
-int solveTSP(Matrix<N> costMatrix) {
+int solveTSP(Matrix<N> costMatrix, bool showPath) {
     std::priority_queue<Node<N> *, std::vector<Node<N> *>, Min_Heap<N>>
         queue;
     Path solution;
     int finalCost = 0;
+    std::cout<<"Iniciando TSP com matrix "<<N<<"x"<<N<<".\n";
+    std::cout<<"Tamanho do nó: "<<sizeof(Node<N>)<<" bytes.\n";
+    std::cout<<"Tamanho de 1 nivel: "<<sizeof(Node<N>)*N<<" bytes.\n";
+
     Node<N> *root = new Node<N>(costMatrix);
     queue.push(root);
     while (!queue.empty()) {
-        Node<N> *min = queue.top();
+        std::cout<<"Tamanho da fila: "<<queue.size()<<".\n";
+        const Node<N> *min = queue.top();
         queue.pop();
         if (min->level == N - 1) {
             finalCost = min->cost;
-            min->printPath();
+            if(showPath) min->printPath();
             delete min;
             return finalCost;
         }
         for (size_t j = 0; j < N; j++) {
             if (min->reducedCost[min->vertex][j] != INF) {
-                queue.push(new Node<N>(*min, j));
+                Node<N>* c = new Node<N>(*min, j);
+                queue.push(c);
             }
         }
         delete min;
