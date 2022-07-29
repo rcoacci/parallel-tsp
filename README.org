@@ -1,0 +1,18 @@
+* Parallel TSP
+
+Parallel implementations of branch and bound with matrix reduction algorithm for the travelling salesman problem, developed for my Master's degree in Computer Architechtures.
+
+NOTE: some content (commit messages, comments, string messages, etc.) might be in portuguese. Most of the code should be in english.
+
+The files in ~data/~ were created by preprocessing the corresponding files from [[http://comopt.ifi.uni-heidelberg.de/software/TSPLIB95/index.html][TSPLIB]].
+
+** Building
+The project uses ~meson~ as build system. Check [[https://mesonbuild.com/][Meson Build]] for details on installation. After installed, run:
+#+begin_src shell
+mkdir build
+meson configure -Dbuildtype=release build
+meson compile -C build
+#+end_src
+
+After compilation, 3 binaries should be available in ~build/~: ~tsp~ (serial), ~tsp-mpi~ (MPI), and ~tsp-omp~ (OpenMP);
+All versions have as mandatory first argument the path of a data file (see ~data/~ for examples). The OpenMP version has an optional second argument specifing the number of threads desired.
