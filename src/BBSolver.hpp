@@ -14,27 +14,18 @@
 namespace TSP {
 
 using Cost = uint16_t;
+using City = size_t;
 static constexpr auto INF = std::numeric_limits<Cost>::max();
-using Path = std::vector<size_t>;
-using std::size_t;
+using Path = std::vector<City>;
 
 
-void printPath(const TSP::Path& solution){
-    std::cout<<"Path: ( " <<solution.front();
-    std::for_each(solution.cbegin()+1, solution.cend(), [](const auto& item) {
-        std::cout << " -> "<<item;
-    });
-    std::cout << " )\n";
-}
-
-
-struct Matrix {
+class Matrix {
     std::vector<Cost>m;
     size_t N;
+public:
     Matrix(size_t n): m(n*n), N(n){}
-    //Matrix(const Matrix& other) = default; //:m(other.m), N(other.N){}
-    Cost& operator()(size_t i, size_t j){return m[i*N+j];}
-    Cost operator()(size_t i, size_t j) const {return m[i*N+j];}
+    Cost& operator()(City i, City j){return m[i*N+j];}
+    Cost operator()(City i, City j) const {return m[i*N+j];}
     size_t size() const {return N;}
 };
 
@@ -42,47 +33,46 @@ auto readMatrix(const std::filesystem::path& filename){
     auto ifs = std::ifstream(filename);
     size_t sz = 0;
     ifs>>sz;
-    TSP::Matrix matrix(sz);
+    Matrix matrix(sz);
     for(size_t i = 0; i < sz; i++){
         for(size_t j = 0; j < sz; j++){
             ifs>>matrix(i,j);
-            if(matrix(i,j) == (TSP::Cost)-1) matrix(i,j) = TSP::INF;
+            if(matrix(i,j) == (Cost)-1) matrix(i,j) = TSP::INF;
         }
     }
-    TSP::Cost minCost = 0;
+    Cost minCost = 0;
     ifs>>minCost;
     return std::make_tuple(matrix, minCost);
 }
 
 struct Node {
-    Matrix reducedCost;
-    Path path;
-    size_t vertex;
+    Matrix reduced;
+    Path cities;
     Cost cost;
-    size_t N;
 
-    Node(const Matrix &costMatrix, size_t start = 0)
-        : reducedCost(costMatrix), path({start}), vertex(start), cost(0), N(costMatrix.size()) {
-        path.reserve(N+1);
+    Node(const Matrix &costMatrix, City start = 0)
+        : reduced(costMatrix), cities({start}), cost(0){
+        cities.reserve(costMatrix.size()+1);
     }
 
-    Node(const Node &parent, size_t vertex)
-        : reducedCost(parent.reducedCost), path(parent.path), vertex(vertex), cost(parent.cost), N(parent.N){
-        this->path.push_back(vertex);
-        this->cost += parent.reducedCost(parent.vertex,vertex);
+    Node(const Node &parent, City vertex)
+        : reduced(parent.reduced), cities(parent.cities), cost(parent.cost){
+        City pv = parent.cities.back();
+        this->cities.push_back(vertex);
+        this->cost += parent.reduced(pv,vertex);
         // Adiciona caminho para cidade inicial
-        if (path.size() == N) {
-            this->path.push_back(path.front());
+        if (cities.size() == reduced.size()) {
+            this->cities.push_back(cities.front());
         }
-        this->reducedCost(vertex,0) = INF;
+        this->reduced(vertex,0) = INF;
         // Change all entries of row i and column j to INF
-        for (size_t k = 0; k < N; k++) {
+        for (size_t k = 0; k < reduced.size(); k++) {
 
             // Set outgoing edges for the city i to INF
-            this->reducedCost(parent.vertex,k) = INF;
+            this->reduced(pv,k) = INF;
 
             // Set incoming edges to city j to INF
-            this->reducedCost(k,vertex) = INF;
+            this->reduced(k,vertex) = INF;
         }
     }
 
@@ -91,12 +81,11 @@ struct Node {
 
     Cost reduceRow() {
         Cost rowCost = 0;
-        Matrix& reduced = this->reducedCost;
-        for (size_t i = 0; i < N; i++) {
-            Cost min_val = *std::min_element(&reduced(i,0), &reduced(i,N));
+        for (size_t i = 0; i < reduced.size(); i++) {
+            Cost min_val = *std::min_element(&reduced(i,0), &reduced(i,reduced.size()));
             if (min_val != INF && min_val!=0) {
                 rowCost+=min_val;
-                for (size_t j = 0; j < N; j++) {
+                for (size_t j = 0; j < reduced.size(); j++) {
                     if (reduced(i,j) != INF)
                         reduced(i,j) -= min_val;
                 }
@@ -107,15 +96,14 @@ struct Node {
 
     Cost reduceCol() {
         Cost colCost = 0;
-        Matrix& reduced = this->reducedCost;
-        for (size_t j = 0; j < N; j++) {
+        for (size_t j = 0; j < reduced.size(); j++) {
             Cost min_val = INF;
-            for (size_t i = 0; i < N; i++) {
+            for (size_t i = 0; i < reduced.size(); i++) {
                 min_val = std::min(min_val, reduced(i,j));
             }
             if(min_val!=INF && min_val!=0){
                 colCost+=min_val;
-                for (size_t i = 0; i < N; i++) {
+                for (size_t i = 0; i < reduced.size(); i++) {
                     if (reduced(i,j) != INF)
                         reduced(i,j) -= min_val;
                 }
@@ -132,56 +120,28 @@ struct Node {
 
     std::vector<Node*> children(){
         std::vector<Node*> st;
-        for (size_t j = 0; j < N; j++) {
-            if (this->reducedCost(this->vertex,j) != INF) {
+        for (size_t j = 0; j < reduced.size(); j++) {
+            if (this->reduced(this->cities.back(),j) != INF) {
                 st.push_back(new Node(*this,j));
             }
         }
         std::sort(st.begin(), st.end(), std::less<>());
         return st;
     }
-};
-using MaxHeap = std::priority_queue<Node *>;
-using MinHeap = std::priority_queue<Node*, std::vector<Node*>, std::greater<Node*>>;
-using Stack = std::stack<Node *>;
 
-void eval(Node* n, Cost& finalCost, std::unique_ptr<Node>& solution){
-    std::unique_ptr<Node> min(n);
-    min->calculateCost();
-    auto N = min->N;
-    if(min->cost < finalCost) {
-        if (min->path.size() == N+1) {
-            #pragma omp critical (crit_sol)
-            {
-                solution = std::move(min);
-                finalCost = solution->cost;
-            }
-        } else {
-            auto children = min->children();
-            #pragma omp parallel master taskloop shared(solution)
-            for(auto c: children){
-                eval(c, finalCost, solution);
-            }
-        }
+    bool is_feasible(Cost currentBest){
+        calculateCost();
+        return cost < currentBest;
     }
-}
 
-auto solveTSP(const Matrix& costMatrix) {
-    // Stack pq;
-    Cost finalCost = INF;
-    size_t N = costMatrix.size();
-    std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
-    std::unique_ptr<Node> root = std::make_unique<Node>(costMatrix);
-    root->calculateCost();
-    // pq.push(root);
-    std::unique_ptr<Node> solution;// = root;
-    eval(root.release(), finalCost, solution);
-    // while (!pq.empty()) {
-    //     auto min = std::unique_ptr<Node>(pq.top());
-    //     pq.pop();
-    //     auto children = eval(min, finalCost, solution);
-    //     for (auto c: children) pq.push(c);
-    // }
-    return *solution;
-}
+    void printPath(){
+        std::cout<<"Path: ( " <<cities.front();
+        std::for_each(cities.cbegin()+1, cities.cend(), [](const auto& item) {
+            std::cout << " -> "<<item;
+        });
+        std::cout << " )\n";
+    }
+
+};
+using Stack = std::stack<Node *>;
 } // namespace TSP

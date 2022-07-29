@@ -7,91 +7,131 @@
 #include <filesystem>
 #include <fstream>
 #include <mpi/mpi.h>
+#include <chrono>
+#include <unordered_set>
 
 using namespace std;
 using namespace TSP;
+using clk = chrono::steady_clock;
 
-auto solve(Node* root){
-    std::stack<Node*> st;
-    size_t N = root->N;
-    Node* solution = root;
-    Cost bestCost = INF;
-    st.push(root);
-    size_t max_q_size = std::numeric_limits<size_t>::min();
-    while (!st.empty()) {
-        max_q_size = std::max(max_q_size, st.size());
-        Node *min = st.top();
-        st.pop();
-        if (min->path.size() == N+1) {
-            if(min->cost < bestCost) {
-                delete solution;
-                solution = min;
-                bestCost = solution->cost;
-            }
-        } else if(min->cost < bestCost){
-            MaxHeap queue; // Usa uma max heap para ordenar os filhos por maior custo
-            for (size_t j = 0; j < N; j++) {
-                if (min->reducedCost(min->vertex,j) != INF) {
-                    Node* c = new Node(*min, j);
-                    queue.push(c);
-                }
-            }
-            // Adiciona os filhos na pilha em ordem do maior custo para o menor custo.
-            // Dessa forma o filho de menor custo vai estar no topo na proxima iteracao.
-            // Essa é uma maneira "hibrida" de fazer um Depth First com caracteristicas de "Best First" sem usar muita memoria
-            while(!queue.empty()){
-                st.push(queue.top());
-                queue.pop();
+
+enum {
+    COST_TAG = 10,
+    SOLUTION_TAG,
+    DONE_TAG
+};
+
+auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
+    Stack pq;
+    size_t N = input.size();
+    vector<long> solution(N+2, INF);
+    Node* root = new Node(input);
+    root->calculateCost();
+    std::cout<<"[Proc "<<id<<"]: Processando cidades:";
+    auto firstLevel = root->children();
+    for(size_t i=id-1; i < firstLevel.size(); i+=numProcs-1){
+        std::cout<<" "<<firstLevel[i]->cities.back();
+        pq.push(firstLevel[i]);
+    }
+    std::cout<<"\n";
+    MPI_Status probe;
+    int probe_flag = 0;
+    clk::time_point t_start;
+    while (!pq.empty()) {
+        t_start = clk::now();
+        MPI_Iprobe(0, COST_TAG, MPI_COMM_WORLD, &probe_flag, &probe);
+        if(probe_flag) MPI_Recv(solution.data(), solution.size(), MPI_LONG , 0, COST_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        overhead += (clk::now()-t_start);
+        auto min = unique_ptr<Node>(pq.top());
+        pq.pop();
+        if(min->is_feasible(solution[0])) {
+            if (min->cities.size() == N+1) {
+                solution[0] = min->cost;
+                std::copy(min->cities.begin(), min->cities.end(), &solution[1]);
+                t_start = clk::now();
+                MPI_Send(solution.data(), solution.size(), MPI_LONG, 0, SOLUTION_TAG, MPI_COMM_WORLD);
+                overhead += (clk::now()-t_start);
+            } else {
+                for (auto c: min->children()) pq.push(c);
             }
         }
-        if(min!=solution) delete min;
     }
     return solution;
 }
 
 int main(int argc, char *argv[]){
-
-    TSP::Matrix input(0);
-    TSP::Cost bestSolution;
-    MPI_Init(&argc, &argv);
-    MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
-    int numProcs = 0;
-    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
-    int id = -1;
-    MPI_Comm_rank(MPI_COMM_WORLD, &id);
-
     if(argc<2) {
         std::cerr<<"Falta arquivo de dados!";
         exit(-1);
     }
-
+    clk::time_point full_start = clk::now();
     auto data_file = filesystem::path{argv[1]};
-    std::tie(input,bestSolution) = readMatrix(data_file);
-    Node *root = new Node(input);
+    TSP::Matrix input(0);
+    TSP::Cost correctSolution;
+    vector<long> bestSolution(input.size()+2, INF);
+    std::tie(input,correctSolution) = readMatrix(data_file);
+    int numProcs = 0;
+    int id = -1;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_set_errhandler(MPI_COMM_WORLD, MPI_ERRORS_ARE_FATAL);
+    MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
+    MPI_Comm_rank(MPI_COMM_WORLD, &id);
+    int error = 0;
 
-    // MinHeap queue;
-    // for (size_t j = id; j < input.N; j+=numProcs) {
-    //     std::cout<<"[Proc "<<id<<"]: Executando "<<j<<"\n";
-    //     if (root->reducedCost(root->vertex,j) != INF) {
-    //         Node* c = new Node(*root, j);
-    //         queue.push(solve(c));
-    //     }
-    // }
-    Node* localBest = solve(root);
-    std::cout<<"[Proc "<<id<<"]: Melhor "<<localBest->cost<<"\n";
-    vector<TSP::Cost> solutions(numProcs);
-    MPI_Gather(&localBest->cost, 1, MPI_UINT16_T, solutions.data(), 1, MPI_UINT16_T, 0,MPI_COMM_WORLD);
-    MPI_Finalize();
-    if(id==0){
-        TSP::Cost result = *std::min_element(solutions.begin(),solutions.end());
-        if(result != bestSolution){
+    if(id!=0){
+        clk::duration overhead{};
+        auto p_start = clk::now();
+        bestSolution = solveTSP(input, id, numProcs, overhead);
+        std::cout<<"[Proc "<<id<<"]: Terminou com solução: "<<bestSolution[0]<<"\n";
+        auto t_start = clk::now();
+        MPI_Send(bestSolution.data(), bestSolution.size(), MPI_LONG, 0, DONE_TAG, MPI_COMM_WORLD);
+        overhead += (clk::now()-t_start);
+        auto p_time = clk::now()-p_start;
+        std::cout<<"[Proc "<<id<<"]: Tempo principal: "<<p_time/1.s<<"\n";
+        std::cout<<"[Proc "<<id<<"]:  Overhead total: "<<overhead/1.s<<"\n";
+        std::cout<<"[Proc "<<id<<"]:      Overhead %: "<<(overhead/1.ms)/(p_time/1.ms)*100.0<<"\n\n";
+    } else {
+        std::cout<<"[Proc "<<id<<"]: Iniciando TSP com matriz "<<input.size()<<"x"<<input.size()<<".\n";
+        std::cout<<"[Proc "<<id<<"]: Custo correto:    "<<correctSolution<<"\n";
+        MPI_Status probe, msg;
+        unordered_set<int> running;
+        for(int i=1; i<numProcs; i++) running.insert(i);
+        vector<long> localBest(input.size()+2, INF);
+        vector<MPI_Request> requests;
+        requests.reserve(numProcs-1);
+        while(!running.empty()){
+            MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &probe);
+            if(probe.MPI_SOURCE == 0) {
+                cerr<<"Erro: Root recebeu mensagem dele mesmo!\n";
+                MPI_Abort(MPI_COMM_WORLD, -1);
+            }
+            MPI_Recv(localBest.data(), localBest.size(), MPI_LONG, probe.MPI_SOURCE, probe.MPI_TAG, MPI_COMM_WORLD, &msg);
+            MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+            if(localBest[0]<bestSolution[0]) bestSolution = localBest;
+            if(msg.MPI_TAG == DONE_TAG) running.erase(msg.MPI_SOURCE);
+            if(msg.MPI_TAG == SOLUTION_TAG) {
+                requests.clear();
+                for (int wid: running){
+                    MPI_Request r;
+                    MPI_Isend(bestSolution.data(), bestSolution.size(), MPI_LONG, wid, COST_TAG, MPI_COMM_WORLD, &r);
+                    requests.push_back(r);
+                }
+            }
+        }
+        if(bestSolution[0] != correctSolution){
             std::cout<<"************* Custo INCORRETO! *****************\n";
-            std::cout<<"Custo correto:    "<<bestSolution<<"\n";
-            std::cout<<"Custo encontrado: "<<result<<"\n";
-            return -1;
+            std::cout<<"Custo encontrado: "<<bestSolution[0]<<"\n";
+            error = -1;
         } else {
-            std::cout<<"Custo correto!\n";
+            std::cout<<"Custo correto!\nMelhor tour: ";
+            cout<<bestSolution[1];
+            for(auto n = bestSolution.begin()+2; n != bestSolution.end(); n++) cout<<"->"<<*n;
+            cout<<"\n";
+
         }
     }
-    return 0;
+    MPI_Finalize();
+    auto total_time = clk::now()-full_start;
+    if(id==0) std::cout<<"[Proc "<<id<<"]:    Tempo total: "<<total_time/1.s<<"\n";
+    return error;
 }
