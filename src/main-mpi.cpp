@@ -1,10 +1,10 @@
 #include "BBSolver.hpp"
 #include <cstdlib>
+#include <mpi.h>
 #include <tuple>
 #include <string>
 #include <filesystem>
 #include <fstream>
-#include <mpi/mpi.h>
 #include <chrono>
 #include <unordered_set>
 
