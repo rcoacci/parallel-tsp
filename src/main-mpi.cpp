@@ -1,7 +1,5 @@
 #include "BBSolver.hpp"
-//#include "nn_tsp.hpp"
 #include <cstdlib>
-#include <omp.h>
 #include <tuple>
 #include <string>
 #include <filesystem>
