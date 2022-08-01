@@ -76,19 +76,7 @@ int main(int argc, char *argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
     int error = 0;
 
-    if(id!=0){
-        clk::duration overhead{};
-        auto p_start = clk::now();
-        bestSolution = solveTSP(input, id, numProcs, overhead);
-        std::cout<<"[Proc "<<id<<"]: Terminou com solução: "<<bestSolution[0]<<"\n";
-        auto t_start = clk::now();
-        MPI_Send(bestSolution.data(), bestSolution.size(), MPI_LONG, 0, DONE_TAG, MPI_COMM_WORLD);
-        overhead += (clk::now()-t_start);
-        auto p_time = clk::now()-p_start;
-        std::cout<<"[Proc "<<id<<"]: Tempo principal: "<<p_time/1.s<<"\n";
-        std::cout<<"[Proc "<<id<<"]:  Overhead total: "<<overhead/1.s<<"\n";
-        std::cout<<"[Proc "<<id<<"]:      Overhead %: "<<(overhead/1.ms)/(p_time/1.ms)*100.0<<"\n\n";
-    } else {
+    if(id==0){
         std::cout<<"[Proc "<<id<<"]: Iniciando TSP com matriz "<<input.size()<<"x"<<input.size()<<".\n";
         std::cout<<"[Proc "<<id<<"]: Custo correto:    "<<correctSolution<<"\n";
         MPI_Status probe, msg;
@@ -127,6 +115,20 @@ int main(int argc, char *argv[]){
             cout<<"\n";
 
         }
+    } else if((size_t)id < input.size()) {
+        clk::duration overhead{};
+        auto p_start = clk::now();
+        bestSolution = solveTSP(input, id, numProcs, overhead);
+        std::cout<<"[Proc "<<id<<"]: Terminou com solução: "<<bestSolution[0]<<"\n";
+        auto t_start = clk::now();
+        MPI_Send(bestSolution.data(), bestSolution.size(), MPI_LONG, 0, DONE_TAG, MPI_COMM_WORLD);
+        overhead += (clk::now()-t_start);
+        auto p_time = clk::now()-p_start;
+        std::cout<<"[Proc "<<id<<"]: Tempo principal: "<<p_time/1.s<<"\n";
+        std::cout<<"[Proc "<<id<<"]:  Overhead total: "<<overhead/1.s<<"\n";
+        std::cout<<"[Proc "<<id<<"]:      Overhead %: "<<(overhead/1.ms)/(p_time/1.ms)*100.0<<"\n\n";
+    } else {
+        cout<<"[Proc "<<id<<"]: Sem trabalho.";
     }
     MPI_Finalize();
     auto total_time = clk::now()-full_start;
