@@ -64,7 +64,7 @@ struct Node {
         if (cities.size() == reduced.size()) {
             this->cities.push_back(cities.front());
         }
-        this->reduced(vertex,0) = INF;
+        this->reduced(vertex, cities.front()) = INF;
         // Change all entries of row i and column j to INF
         for (size_t k = 0; k < reduced.size(); k++) {
 
