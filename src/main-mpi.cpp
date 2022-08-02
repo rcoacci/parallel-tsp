@@ -12,12 +12,13 @@ using namespace std;
 using namespace TSP;
 using clk = chrono::steady_clock;
 
-
 enum {
     COST_TAG = 10,
     SOLUTION_TAG,
     DONE_TAG
 };
+
+static int verbose = 0;
 
 auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
     Stack pq;
@@ -25,13 +26,13 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
     vector<long> solution(N+2, INF);
     Node* root = new Node(input);
     root->calculateCost();
-    std::cout<<"[Proc "<<id<<"]: Processando cidades:";
+    std::cout<<"[Proc "<<id<<"] Processando cidades:";
     auto firstLevel = root->children();
     for(size_t i=id-1; i < firstLevel.size(); i+=numProcs-1){
         std::cout<<" "<<firstLevel[i]->cities.back();
         pq.push(firstLevel[i]);
     }
-    std::cout<<"\n";
+    std::cout<<"\n"<<flush;
     MPI_Status probe;
     int probe_flag = 0;
     clk::time_point t_start;
@@ -49,6 +50,7 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
                 t_start = clk::now();
                 MPI_Send(solution.data(), solution.size(), MPI_LONG, 0, SOLUTION_TAG, MPI_COMM_WORLD);
                 overhead += (clk::now()-t_start);
+                if (verbose) min->printFoundSolution(id);
             } else {
                 for (auto c: min->children()) pq.push(c);
             }
@@ -62,6 +64,7 @@ int main(int argc, char *argv[]){
         std::cerr<<"Falta arquivo de dados!";
         exit(-1);
     }
+    std::cout.sync_with_stdio(false);
     clk::time_point full_start = clk::now();
     auto data_file = filesystem::path{argv[1]};
     TSP::Matrix input(0);
@@ -77,8 +80,9 @@ int main(int argc, char *argv[]){
     int error = 0;
 
     if(id==0){
-        std::cout<<"[Proc "<<id<<"]: Iniciando TSP com matriz "<<input.size()<<"x"<<input.size()<<".\n";
-        std::cout<<"[Proc "<<id<<"]: Custo correto:    "<<correctSolution<<"\n";
+        std::cout<<"[Proc "<<id<<"] Iniciando TSP com matriz "<<input.size()<<"x"<<input.size()<<".\n";
+        std::cout<<"[Proc "<<id<<"] Custo correto:    "<<correctSolution<<"\n";
+        cout<<flush;
         MPI_Status probe, msg;
         unordered_set<int> running;
         for(int i=1; i<numProcs; i++) running.insert(i);
@@ -110,28 +114,27 @@ int main(int argc, char *argv[]){
             error = -1;
         } else {
             std::cout<<"Custo correto!\nMelhor tour: ";
-            cout<<bestSolution[1];
-            for(auto n = bestSolution.begin()+2; n != bestSolution.end(); n++) cout<<"->"<<*n;
+            printPath(bestSolution.begin()+1, bestSolution.end());
             cout<<"\n";
-
         }
     } else if((size_t)id < input.size()) {
         clk::duration overhead{};
         auto p_start = clk::now();
         bestSolution = solveTSP(input, id, numProcs, overhead);
-        std::cout<<"[Proc "<<id<<"]: Terminou com solução: "<<bestSolution[0]<<"\n";
+        std::cout<<"[Proc "<<id<<"] Terminou com solução: "<<bestSolution[0]<<"\n";
         auto t_start = clk::now();
         MPI_Send(bestSolution.data(), bestSolution.size(), MPI_LONG, 0, DONE_TAG, MPI_COMM_WORLD);
         overhead += (clk::now()-t_start);
         auto p_time = clk::now()-p_start;
-        std::cout<<"[Proc "<<id<<"]: Tempo principal: "<<p_time/1.s<<"\n";
-        std::cout<<"[Proc "<<id<<"]:  Overhead total: "<<overhead/1.s<<"\n";
-        std::cout<<"[Proc "<<id<<"]:      Overhead %: "<<(overhead/1.ms)/(p_time/1.ms)*100.0<<"\n\n";
+        std::cout<<"[Proc "<<id<<"] Tempo principal: "<<p_time/1.s<<"\n";
+        std::cout<<"[Proc "<<id<<"]  Overhead total: "<<overhead/1.s<<"\n";
+        std::cout<<"[Proc "<<id<<"]      Overhead %: "<<(overhead/1.ms)/(p_time/1.ms)*100.0<<"\n\n";
     } else {
-        cout<<"[Proc "<<id<<"]: Sem trabalho.";
+        cout<<"[Proc "<<id<<"] Sem trabalho.\n";
     }
+    cout<<flush;
     MPI_Finalize();
     auto total_time = clk::now()-full_start;
-    if(id==0) std::cout<<"[Proc "<<id<<"]:    Tempo total: "<<total_time/1.s<<"\n";
+    if(id==0) std::cout<<"[Proc "<<id<<"]    Tempo total: "<<total_time/1.s<<"\n";
     return error;
 }

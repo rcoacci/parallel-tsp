@@ -18,6 +18,11 @@ using City = size_t;
 static constexpr auto INF = std::numeric_limits<Cost>::max();
 using Path = std::vector<City>;
 
+template<typename Iterator>
+void printPath(const Iterator& begin, const Iterator& end){
+    std::cout<<*begin;
+    std::for_each(begin+1, end, [](const auto& n){ std::cout<<"->"<<n; });
+}
 
 class Matrix {
     std::vector<Cost>m;
@@ -53,6 +58,7 @@ struct Node {
     Node(const Matrix &costMatrix, City start = 0)
         : reduced(costMatrix), cities({start}), cost(0){
         cities.reserve(costMatrix.size()+1);
+        calculateCost();
     }
 
     Node(const Node &parent, City vertex)
@@ -74,10 +80,11 @@ struct Node {
             // Set incoming edges to city j to INF
             this->reduced(k,vertex) = INF;
         }
+        calculateCost();
     }
 
-    bool operator>(const Node& other) const {return this->cost>other.cost;}
-    bool operator<(const Node& other) const {return this->cost<other.cost;}
+    bool operator>(const Node& other) const {return cost>other.cost;}
+    bool operator<(const Node& other) const {return cost<other.cost;}
 
     Cost reduceRow() {
         Cost rowCost = 0;
@@ -125,23 +132,33 @@ struct Node {
                 st.push_back(new Node(*this,j));
             }
         }
-        std::sort(st.begin(), st.end(), std::less<>());
         return st;
     }
 
     bool is_feasible(Cost currentBest){
-        calculateCost();
         return cost < currentBest;
     }
 
     void printPath(){
-        std::cout<<"Path: ( " <<cities.front();
-        std::for_each(cities.cbegin()+1, cities.cend(), [](const auto& item) {
-            std::cout << " -> "<<item;
-        });
-        std::cout << " )\n";
+        TSP::printPath(cities.begin(), cities.end());
+    }
+    void printFoundSolution(int id, bool withPath=false){
+        std::cout<<"[Proc "<<id<<"] Encontrou solucao com custo "<<this->cost;
+        if(withPath){
+            std::cout<<": ";
+            this->printPath();
+        }
+        std::cout<<"\n";
+        std::cout<<std::flush;
     }
 
 };
 using Stack = std::stack<Node *>;
+using MinHeap = std::priority_queue<Node*, std::vector<Node*>, std::less<Node*>>;
+
 } // namespace TSP
+
+template<>
+struct std::less<TSP::Node*>{
+    inline bool operator()(const TSP::Node* lhs, const TSP::Node* rhs){return lhs->cost<rhs->cost;}
+};

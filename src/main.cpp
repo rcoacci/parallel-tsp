@@ -6,20 +6,28 @@
 
 using namespace std;
 
-auto solveTSP(const TSP::Matrix& costMatrix) {
-    using namespace TSP;
-    Stack pq;
+
+#ifndef _OPENMP
+#define omp_get_thread_num() 0
+#endif
+
+static int verbose = 0;
+using namespace TSP;
+
+auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
+    MinHeap pq;
     Cost finalCost = INF;
     size_t N = costMatrix.size();
     std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
-    Node* root = new Node(costMatrix);
-    root->calculateCost();
+    Node* root = new Node(costMatrix, start);
     std::unique_ptr<Node> solution;
-    #pragma omp parallel private(pq)
+    size_t max_stack_size = 0;
+    #pragma omp parallel private(pq) reduction(max: max_stack_size)
     {
         #pragma omp for
         for(auto c: root->children()) pq.push(c); // Each thread gets a child of root and runs its subtree
         while (!pq.empty()) {
+            max_stack_size = std::max(max_stack_size, pq.size());
             auto min = unique_ptr<Node>(pq.top());
             pq.pop();
             if(min->is_feasible(finalCost)) {
@@ -29,12 +37,15 @@ auto solveTSP(const TSP::Matrix& costMatrix) {
                         solution = std::move(min);
                         finalCost = solution->cost;
                     }
+                    if(verbose) solution->printFoundSolution(omp_get_thread_num());
                 } else {
-                    for (auto c: min->children()) pq.push(c);
+                    auto children = min->children();
+                    for(auto c: children){ pq.push(c); }
                 }
             }
         }
     }
+    cout<<"Max stack: "<<max_stack_size<<endl;
     return *solution;
 }
 
@@ -48,6 +59,7 @@ int main(int argc, char *argv[]){
         std::cerr<<"Falta arquivo de dados!";
         exit(-1);
     }
+    std::cout.sync_with_stdio(false);
 #ifdef _OPENMP
     long nthreads = omp_get_max_threads();
     if(argc>2){
@@ -59,9 +71,10 @@ int main(int argc, char *argv[]){
     TSP::Matrix costMatrix(0);
     TSP::Cost bestSolution;
     std::tie(costMatrix,bestSolution) = TSP::readMatrix(data_file);
-    std::cout<<"Custo correto:    "<<bestSolution<<"\n";
+    std::cout<<"Custo correto:    "<<bestSolution<<"\n"<<std::flush;
     auto result = solveTSP(costMatrix);
     result.printPath();
+    cout<<"\n";
     if(result.cost != bestSolution){
         std::cout<<"************* Custo INCORRETO! *****************\n";
         std::cout<<"Custo correto:    "<<bestSolution<<"\n";
