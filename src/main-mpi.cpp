@@ -25,7 +25,6 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
     size_t N = input.size();
     vector<long> solution(N+2, INF);
     Node* root = new Node(input);
-    root->calculateCost();
     std::cout<<"[Proc "<<id<<"] Processando cidades:";
     auto firstLevel = root->children();
     for(size_t i=id-1; i < firstLevel.size(); i+=numProcs-1){
@@ -36,7 +35,9 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
     MPI_Status probe;
     int probe_flag = 0;
     clk::time_point t_start;
+    size_t max_stack_size = 0;
     while (!pq.empty()) {
+        max_stack_size = std::max(max_stack_size, pq.size());
         t_start = clk::now();
         MPI_Iprobe(0, COST_TAG, MPI_COMM_WORLD, &probe_flag, &probe);
         if(probe_flag) MPI_Recv(solution.data(), solution.size(), MPI_LONG , 0, COST_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -56,6 +57,7 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
             }
         }
     }
+    cout<<"Max stack: "<<max_stack_size<<endl;
     return solution;
 }
 
@@ -78,14 +80,16 @@ int main(int argc, char *argv[]){
     MPI_Comm_size(MPI_COMM_WORLD, &numProcs);
     MPI_Comm_rank(MPI_COMM_WORLD, &id);
     int error = 0;
-
+    int is_active = (size_t)id < input.size();
+    vector<int> active(numProcs, 0);
+    MPI_Gather(&is_active, 1, MPI_INT, &active[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
     if(id==0){
         std::cout<<"[Proc "<<id<<"] Iniciando TSP com matriz "<<input.size()<<"x"<<input.size()<<".\n";
         std::cout<<"[Proc "<<id<<"] Custo correto:    "<<correctSolution<<"\n";
         cout<<flush;
         MPI_Status probe, msg;
         unordered_set<int> running;
-        for(int i=1; i<numProcs; i++) running.insert(i);
+        for(int i=1; i<numProcs; i++) if(active[i]) running.insert(i);
         vector<long> localBest(input.size()+2, INF);
         vector<MPI_Request> requests;
         requests.reserve(numProcs-1);
