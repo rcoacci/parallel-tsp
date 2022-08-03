@@ -24,8 +24,15 @@ auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
     size_t max_stack_size = 0;
     #pragma omp parallel private(pq) reduction(max: max_stack_size)
     {
-        #pragma omp for
-        for(auto c: root->children()) pq.push(c); // Each thread gets a child of root and runs its subtree
+        std::stringstream tmp;
+        tmp<<"[Proc "<<omp_get_thread_num()<<"] Processando cidades:";
+        #pragma omp for nowait
+        for(auto c: root->children()) {
+            tmp<<" "<<c->cities.back();
+            pq.push(c); // Each thread gets a child of root and runs its subtree
+        }
+        #pragma omp critical (print)
+        cout<<tmp.str()<<endl;
         while (!pq.empty()) {
             max_stack_size = std::max(max_stack_size, pq.size());
             auto min = unique_ptr<Node>(pq.top());
