@@ -132,6 +132,7 @@ struct Node {
                 st.push_back(new Node(*this,j));
             }
         }
+        std::sort(st.begin(), st.end(), [](auto a, auto b){return *a>*b;});
         return st;
     }
 
@@ -160,5 +161,5 @@ using MinHeap = std::priority_queue<Node*, std::vector<Node*>, std::less<Node*>>
 
 template<>
 struct std::less<TSP::Node*>{
-    inline bool operator()(const TSP::Node* lhs, const TSP::Node* rhs){return lhs->cost<rhs->cost;}
+    inline bool operator()(const TSP::Node* lhs, const TSP::Node* rhs){return *lhs<*rhs;}
 };

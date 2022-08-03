@@ -15,7 +15,7 @@ static int verbose = 0;
 using namespace TSP;
 
 auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
-    MinHeap pq;
+    Stack pq;
     Cost finalCost = INF;
     size_t N = costMatrix.size();
     std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
