@@ -84,6 +84,7 @@ int main(int argc, char *argv[]){
     vector<int> active(numProcs, 0);
     MPI_Gather(&is_active, 1, MPI_INT, &active[0], 1, MPI_INT, 0, MPI_COMM_WORLD);
     if(id==0){
+        std::cout<<"Arquivo: "<<data_file<<"\n";
         std::cout<<"[Proc "<<id<<"] Iniciando TSP com matriz "<<input.size()<<"x"<<input.size()<<".\n";
         std::cout<<"[Proc "<<id<<"] Custo correto:    "<<correctSolution<<"\n";
         cout<<flush;

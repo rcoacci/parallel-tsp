@@ -78,6 +78,7 @@ int main(int argc, char *argv[]){
     TSP::Matrix costMatrix(0);
     TSP::Cost bestSolution;
     std::tie(costMatrix,bestSolution) = TSP::readMatrix(data_file);
+    std::cout<<"Arquivo: "<<data_file<<"\n";
     std::cout<<"Custo correto:    "<<bestSolution<<"\n"<<std::flush;
     auto result = solveTSP(costMatrix);
     result.printPath();
