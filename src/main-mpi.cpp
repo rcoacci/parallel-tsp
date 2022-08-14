@@ -62,13 +62,17 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
 }
 
 int main(int argc, char *argv[]){
+    std::ios_base::sync_with_stdio(false);
     if(argc<2) {
         std::cerr<<"Falta arquivo de dados!";
         exit(-1);
     }
-    std::cout.sync_with_stdio(false);
-    clk::time_point full_start = clk::now();
     auto data_file = filesystem::path{argv[1]};
+    if(!filesystem::exists(data_file)){
+        std::cerr<<"Falta arquivo de dados!";
+        exit(-1);
+    }
+    clk::time_point full_start = clk::now();
     TSP::Matrix input(0);
     TSP::Cost correctSolution;
     vector<long> bestSolution(input.size()+2, INF);
