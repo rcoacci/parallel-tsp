@@ -17,7 +17,7 @@ using namespace TSP;
 
 auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
     Stack pq;
-    Cost finalCost = INF;
+    Cost finalCost = Matrix::INF;
     size_t N = costMatrix.size();
     std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
     Node* root = new Node(costMatrix, start);

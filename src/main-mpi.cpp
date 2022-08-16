@@ -23,7 +23,7 @@ static int verbose = 0;
 auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
     Stack pq;
     size_t N = input.size();
-    vector<long> solution(N+2, INF);
+    vector<long> solution(N+2, Matrix::INF);
     Node* root = new Node(input);
     std::cout<<"[Proc "<<id<<"] Processando cidades:";
     auto firstLevel = root->children();
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]){
     clk::time_point full_start = clk::now();
     TSP::Matrix input(0);
     TSP::Cost correctSolution;
-    vector<long> bestSolution(input.size()+2, INF);
+    vector<long> bestSolution(input.size()+2, Matrix::INF);
     std::tie(input,correctSolution) = readMatrix(data_file);
     int numProcs = 0;
     int id = -1;
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]){
         MPI_Status probe, msg;
         unordered_set<int> running;
         for(int i=1; i<numProcs; i++) if(active[i]) running.insert(i);
-        vector<long> localBest(input.size()+2, INF);
+        vector<long> localBest(input.size()+2, Matrix::INF);
         vector<MPI_Request> requests;
         requests.reserve(numProcs-1);
         while(!running.empty()){
