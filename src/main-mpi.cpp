@@ -21,7 +21,7 @@ enum {
 static int verbose = 0;
 
 auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
-    Stack pq;
+    MinHeap pq;
     size_t N = input.size();
     vector<long> solution(N+2, Matrix::INF);
     Node* root = new Node(input);
@@ -35,9 +35,7 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
     MPI_Status probe;
     int probe_flag = 0;
     clk::time_point t_start;
-    size_t max_stack_size = 0;
     while (!pq.empty()) {
-        max_stack_size = std::max(max_stack_size, pq.size());
         t_start = clk::now();
         MPI_Iprobe(0, COST_TAG, MPI_COMM_WORLD, &probe_flag, &probe);
         if(probe_flag) MPI_Recv(solution.data(), solution.size(), MPI_LONG , 0, COST_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -57,7 +55,6 @@ auto solveTSP(Matrix input, int id, int numProcs, clk::duration& overhead) {
             }
         }
     }
-    cout<<"Max stack: "<<max_stack_size<<endl;
     return solution;
 }
 

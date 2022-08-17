@@ -22,9 +22,8 @@ auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
     std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
     Node* root = new Node(costMatrix, start);
     std::unique_ptr<Node> solution;
-    size_t max_stack_size = 0;
     auto children = root->children();
-    #pragma omp parallel private(pq) reduction(max: max_stack_size)
+    #pragma omp parallel private(pq)
     {
         auto t_start = clk::now();
         std::stringstream tmp;
@@ -37,7 +36,6 @@ auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
         #pragma omp critical (print)
         cout<<tmp.str()<<endl;
         while (!pq.empty()) {
-            max_stack_size = std::max(max_stack_size, pq.size());
             auto min = unique_ptr<Node>(pq.top());
             pq.pop();
             if(min->is_feasible(finalCost)) {
@@ -60,7 +58,6 @@ auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
             <<(clk::now()-t_start)/1.s<<"\n";
         cout<<tmp.str()<<flush;
     }
-    cout<<"Max stack: "<<max_stack_size<<endl;
     return *solution;
 }
 
