@@ -34,8 +34,18 @@ struct Node {
     void printFoundSolution(int id, bool withPath=false);
 
 };
+
+struct NodeComparator{
+    inline bool operator()(const TSP::Node* lhs, const TSP::Node* rhs){
+        if(lhs->cities.size() != rhs->cities.size())
+            return lhs->cities.size()<rhs->cities.size();
+        else {
+            return lhs->cost>rhs->cost;
+        }
+    }
+};
 using Stack = std::stack<Node *>;
-using MinHeap = std::priority_queue<Node*, std::vector<Node*>, std::less<Node*>>;
+using MinHeap = std::priority_queue<Node*, std::vector<Node*>, NodeComparator>;
 
 } // namespace TSP
 
