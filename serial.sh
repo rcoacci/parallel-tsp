@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
-#PBS -l select=1:ncpus=48
-#PBS -l walltime=00:30:00
+cd logs
+qsub <<EOF
+#!/usr/bin/env bash
+#PBS -l select=1:ncpus=2
+#PBS -l walltime=24:00:00
 #PBS -j oe
 #PBS -V
-#PBS -N tsp-serial
+#PBS -N tsp-$1
 
 # load modules
 module load gcc/11.2.0
-cd ${PBS_O_WORKDIR}
-build/tsp data/fri26.data
+
+PROJ="\${PBS_O_HOME}/parallel-tsp"
+
+cd \${PBS_O_WORKDIR}
+echo "\$(date) Iniciando $1 com 1 nos e 1 procs"
+hyperfine -r 5 --export-json tsp-${1}.json "\${PROJ}/build/tsp \${PROJ}/data/${1}.data"
+echo "\$(date) Fim"
+EOF
