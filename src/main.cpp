@@ -10,41 +10,38 @@ using clk = chrono::steady_clock;
 
 #ifndef _OPENMP
 #define omp_get_thread_num() 0
+#define omp_get_num_threads() 1
 #endif
 
 static int verbose = 0;
 using namespace TSP;
 
 auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
-    MinHeap pq;
-    Cost finalCost = Matrix::INF;
     size_t N = costMatrix.size();
     std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
     Node* root = new Node(costMatrix, start);
     std::unique_ptr<Node> solution;
     auto children = root->children();
-    #pragma omp parallel private(pq)
+    #pragma omp parallel
     {
         auto t_start = clk::now();
         std::stringstream tmp;
         tmp<<"[Proc "<<omp_get_thread_num()<<"] Processando cidades:";
-        #pragma omp for nowait
-        for(auto c: children) {
-            tmp<<" "<<c->cities.back();
-            pq.push(c); // Each thread gets a child of root and runs its subtree
+        MinHeap pq;
+        int id = omp_get_thread_num();
+        for(size_t i=id; i<children.size(); i+=omp_get_num_threads()) {
+            tmp<<" "<<children[i]->cities.back();
+            pq.push(children[i]); // Each thread gets a child of root and runs its subtree
         }
         #pragma omp critical (print)
         cout<<tmp.str()<<endl;
         while (!pq.empty()) {
             auto min = unique_ptr<Node>(pq.top());
             pq.pop();
-            if(min->is_feasible(finalCost)) {
+            if(solution == nullptr || min->is_feasible(solution->cost)) {
                 if (min->cities.size() == costMatrix.size()+1) {
                     #pragma omp critical (crit_sol)
-                    {
-                        solution = std::move(min);
-                        finalCost = solution->cost;
-                    }
+                    solution = std::move(min);
                     if(verbose) solution->printFoundSolution(omp_get_thread_num());
                 } else {
                     for(auto c: min->children()){
