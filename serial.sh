@@ -2,8 +2,8 @@
 cd logs
 qsub <<EOF
 #!/usr/bin/env bash
-#PBS -l select=1:ncpus=2
-#PBS -l walltime=24:00:00
+#PBS -l select=1:ncpus=24
+#PBS -l walltime=4:00:00
 #PBS -j oe
 #PBS -V
 #PBS -N tsp-$1

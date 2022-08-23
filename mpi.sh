@@ -3,7 +3,7 @@ cd logs
 qsub <<EOF
 #!/usr/bin/env bash
 #PBS -l select=$2:ncpus=48:mpiprocs=$3
-#PBS -l walltime=24:00:00
+#PBS -l walltime=8:00:00
 #PBS -j oe
 #PBS -V
 #PBS -N tsp-mpi-$1-$3
