@@ -1,6 +1,8 @@
 #include "BBSolver.hpp"
 #include <cstdlib>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 #include <tuple>
 #include <string>
 #include <chrono>
@@ -13,49 +15,59 @@ using clk = chrono::steady_clock;
 #define omp_get_num_threads() 1
 #endif
 
-static int verbose = 0;
+// static int verbose = 0;
 using namespace TSP;
 
-auto solveTSP(const TSP::Matrix& costMatrix, TSP::City start = 0) {
+auto solveTSP(const TSP::Matrix& costMatrix, clk::duration& work, TSP::City start = 0) {
+    long t_work=0;
+    auto _start = clk::now();
     size_t N = costMatrix.size();
-    std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
-    Node* root = new Node(costMatrix, start);
-    std::unique_ptr<Node> solution;
-    auto children = root->children();
-    #pragma omp parallel
+    vector<long> solution(N+2, Matrix::INF);
+    work+=clk::now()-_start;
+    #pragma omp parallel reduction(max:t_work)
     {
         auto t_start = clk::now();
-        std::stringstream tmp;
-        tmp<<"[Proc "<<omp_get_thread_num()<<"] Processando cidades:";
+        std::cout<<"Iniciando TSP com matriz "<<N<<"x"<<N<<".\n";
+        Node* root = new Node(costMatrix, start);
+        auto children = root->children();
         MinHeap pq;
         int id = omp_get_thread_num();
+        std::stringstream tmp;
+        tmp<<"[Proc "<<id<<"] Processando cidades:";
         for(size_t i=id; i<children.size(); i+=omp_get_num_threads()) {
             tmp<<" "<<children[i]->cities.back();
             pq.push(children[i]); // Each thread gets a child of root and runs its subtree
         }
-        #pragma omp critical (print)
-        cout<<tmp.str()<<endl;
+        tmp<<"\n";
+        clk::duration _work = clk::now()-t_start;
         while (!pq.empty()) {
+            t_start = clk::now();
             auto min = unique_ptr<Node>(pq.top());
             pq.pop();
-            if(solution == nullptr || min->is_feasible(solution->cost)) {
-                if (min->cities.size() == costMatrix.size()+1) {
+            _work +=(clk::now()-t_start);
+            if(min->is_feasible(solution[0])) {
+                if (min->cities.size() == N+1) {
                     #pragma omp critical (crit_sol)
-                    solution = std::move(min);
-                    if(verbose) solution->printFoundSolution(omp_get_thread_num());
-                } else {
-                    for(auto c: min->children()){
-                        pq.push(c);
+                    {
+                        t_start = clk::now();
+                        solution[0] = min->cost;
+                        std::copy(min->cities.begin(), min->cities.end(), &solution[1]);
+                        _work+=clk::now()-t_start;
                     }
+                } else {
+                    t_start = clk::now();
+                    for(auto c: min->children()) pq.push(c);
+                    _work+=(clk::now()-t_start);
                 }
             }
         }
-        tmp.str("");
-        tmp<<"[Proc "<<omp_get_thread_num()<<"] Terminou após: "
-            <<(clk::now()-t_start)/1.s<<"\n";
+        t_work = _work.count();
+        tmp<<"[Proc "<<omp_get_thread_num()<<"] Terminou com solução: "<< solution[0];
+        tmp<<" após " <<_work/1.s<<"s\n";
         cout<<tmp.str()<<flush;
     }
-    return *solution;
+    work += clk::duration(t_work);
+    return solution;
 }
 
 int main(int argc, char *argv[]){
@@ -77,27 +89,29 @@ int main(int argc, char *argv[]){
     std::cout<<"Usando "<<nthreads<<" threads.\n";
     omp_set_num_threads(nthreads);
 #endif
-    clk::time_point full_start = clk::now();
     TSP::Matrix costMatrix(0);
     TSP::Cost bestSolution;
     std::tie(costMatrix,bestSolution) = TSP::readMatrix(data_file);
     std::cout<<"Arquivo: "<<data_file<<"\n";
     std::cout<<"Custo correto:    "<<bestSolution<<"\n"<<std::flush;
     auto start = clk::now();
-    auto result = solveTSP(costMatrix);
+    clk::duration t_work{};
+    auto result = solveTSP(costMatrix, t_work);
     auto work = clk::now() - start;
-    result.printPath();
+    printPath(result.begin()+1, result.end());
     cout<<"\n";
-    if(result.cost != bestSolution){
+    if(result[0] != bestSolution){
         std::cout<<"************* Custo INCORRETO! *****************\n";
         std::cout<<"Custo correto:    "<<bestSolution<<"\n";
-        std::cout<<"Custo encontrado: "<<result.cost<<"\n";
+        std::cout<<"Custo encontrado: "<<result[0]<<"\n";
         return -1;
     } else {
         std::cout<<"Custo correto encontrado!\n";
-        std::cout<<"Tempo de processamento: "<< work/1.s<<"\n";
+        std::cout<<"  Tempo total: "<< work/1.s<<"s\n";
+        std::cout<<"   Tempo util: "<< t_work/1.s<<"s\n";
+        std::cout<<"Overhead em s: "<< (work-t_work)/1.s<<"s\n";
+        std::cout<<"   Overhead %: "<<((work-t_work)/1.ms)/(work/1.ms)*100.0<<"\n\n";
+
     }
-    auto total_time = clk::now()-full_start;
-    cout<<"Tempo total: "<<total_time/1.s<<"\n";
     return 0;
 }
