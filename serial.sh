@@ -12,7 +12,7 @@ qsub <<EOF
 module load gcc/11.2.0
 
 PROJ="\${PBS_O_HOME}/parallel-tsp"
-HYPERFINE="hyperfine -r 5 --export-json serial-${1}.json --output serial-${1}.log"
+HYPERFINE="hyperfine -r 5 --export-json serial-${1}.json --output ./serial-${1}.log"
 cd \${PBS_O_WORKDIR}
 echo "\$(date) Iniciando $1 com 1 nos e 1 procs"
 \${HYPERFINE} "\${PROJ}/build/tsp \${PROJ}/data/${1}.data"
