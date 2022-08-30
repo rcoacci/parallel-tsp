@@ -6,7 +6,7 @@ qsub <<EOF
 #PBS -l walltime=8:00:00
 #PBS -j oe
 #PBS -V
-#PBS -N tsp-omp-$1-$2
+#PBS -N vtune-omp-$1-$2
 
 # load modules
 module load gcc/11.2.0 /sw/intel/oneapi/modulefiles/vtune/2021.2.0

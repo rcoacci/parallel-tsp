@@ -12,10 +12,11 @@ qsub <<EOF
 module load gcc/11.2.0
 
 PROJ="\${PBS_O_HOME}/parallel-tsp"
-HYPERFINE="hyperfine -r 5 --export-json omp-${1}-${2}.json --output ./omp-${1}-${2}.log"
+HYPERFINE="hyperfine -r 5 --export-json omp-${1}-${2}.json"
 
 cd \${PBS_O_WORKDIR}
+rm -f ./omp-${1}-${2}.log
 echo "\$(date) Iniciando $1 com $2 procs"
-\${HYPERFINE} "\${PROJ}/build/tsp-omp \${PROJ}/data/${1}.data"
+\${HYPERFINE} "\${PROJ}/build/tsp-omp \${PROJ}/data/${1}.data >> ./omp-${1}-${2}.log"
 echo "\$(date) Fim"
 EOF
